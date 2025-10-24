@@ -46,28 +46,74 @@ fi
 # Enhanced requests installation check
 if ! python3 -c "import requests" &> /dev/null; then
     echo -e "${YELLOW}Installing Python requests library...${NC}"
+    
+    # Try method 1: Using pip3
     if command -v pip3 &> /dev/null; then
-        pip3 install requests
-    elif command -v pip &> /dev/null; then
-        pip install requests
-    else
-        echo -e "${YELLOW}pip not found, installing pip...${NC}"
-        sudo apt-get install -y python3-pip
-        pip3 install requests
+        echo -e "${BLUE}Trying pip3...${NC}"
+        pip3 install --user requests 2>/dev/null
     fi
     
-    # Verify installation
+    # Try method 2: Using pip
+    if ! python3 -c "import requests" &> /dev/null && command -v pip &> /dev/null; then
+        echo -e "${BLUE}Trying pip...${NC}"
+        pip install --user requests 2>/dev/null
+    fi
+    
+    # Try method 3: Using python3 -m pip (most compatible)
     if ! python3 -c "import requests" &> /dev/null; then
-        echo -e "${RED}Failed to install requests library${NC}"
-        echo -e "${YELLOW}Trying alternative installation method...${NC}"
-        python3 -m pip install --user requests
+        echo -e "${BLUE}Trying python3 -m pip...${NC}"
+        python3 -m pip install --user requests 2>/dev/null
+    fi
+    
+    # Try method 4: Install ensurepip and then requests
+    if ! python3 -c "import requests" &> /dev/null; then
+        echo -e "${BLUE}Installing pip module...${NC}"
+        python3 -m ensurepip --user 2>/dev/null
+        python3 -m pip install --user requests 2>/dev/null
+    fi
+    
+    # Try method 5: Using apt (with sudo if available)
+    if ! python3 -c "import requests" &> /dev/null && command -v apt-get &> /dev/null; then
+        if command -v sudo &> /dev/null; then
+            echo -e "${BLUE}Trying apt-get with sudo...${NC}"
+            sudo apt-get update -qq && sudo apt-get install -y python3-requests 2>/dev/null
+        else
+            echo -e "${BLUE}Trying apt-get...${NC}"
+            apt-get update -qq && apt-get install -y python3-requests 2>/dev/null
+        fi
+    fi
+    
+    # Try method 6: Download and install manually
+    if ! python3 -c "import requests" &> /dev/null; then
+        echo -e "${BLUE}Downloading requests manually...${NC}"
+        TEMP_DIR=$(mktemp -d)
+        cd "$TEMP_DIR"
+        if command -v wget &> /dev/null; then
+            wget -q https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3-py3-none-any.whl
+        elif command -v curl &> /dev/null; then
+            curl -sL https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3-py3-none-any.whl -o requests-2.32.3-py3-none-any.whl
+        fi
+        
+        if [ -f "requests-2.32.3-py3-none-any.whl" ]; then
+            python3 -m zipfile -e requests-2.32.3-py3-none-any.whl . 2>/dev/null
+            if [ -d "requests" ]; then
+                mkdir -p ~/.local/lib/python3.*/site-packages/ 2>/dev/null
+                cp -r requests* ~/.local/lib/python3.*/site-packages/ 2>/dev/null
+            fi
+        fi
+        cd - > /dev/null
+        rm -rf "$TEMP_DIR"
     fi
     
     # Final check
     if python3 -c "import requests" &> /dev/null; then
-        echo -e "${GREEN}requests library installed successfully${NC}"
+        echo -e "${GREEN}requests library installed successfully!${NC}"
     else
-        echo -e "${RED}Could not install requests library. Please install manually: pip3 install requests${NC}"
+        echo -e "${RED}Could not install requests library automatically.${NC}"
+        echo -e "${YELLOW}Please try one of these commands manually:${NC}"
+        echo -e "${BLUE}  python3 -m pip install --user requests${NC}"
+        echo -e "${BLUE}  pip3 install --user requests${NC}"
+        echo -e "${BLUE}  apt-get install python3-requests${NC}"
         exit 1
     fi
 fi
