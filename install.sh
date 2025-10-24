@@ -16,6 +16,81 @@ generate_uuid() {
     fi
 }
 
+# Function to install requests library manually
+install_requests_manual() {
+    echo -e "${BLUE}Installing requests library manually...${NC}"
+    
+    # Create local site-packages directory
+    PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    LOCAL_SITE_PACKAGES="$HOME/.local/lib/python${PYTHON_VERSION}/site-packages"
+    mkdir -p "$LOCAL_SITE_PACKAGES"
+    
+    # Add to PYTHONPATH
+    export PYTHONPATH="$LOCAL_SITE_PACKAGES:$PYTHONPATH"
+    
+    TEMP_DIR=$(mktemp -d)
+    cd "$TEMP_DIR"
+    
+    echo -e "${YELLOW}Downloading requests and dependencies...${NC}"
+    
+    # Download requests and its dependencies
+    if command -v wget &> /dev/null; then
+        # requests 2.32.3
+        wget -q https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3-py3-none-any.whl -O requests.whl
+        # charset-normalizer 3.3.2
+        wget -q https://files.pythonhosted.org/packages/28/76/e6222113b83e3622caa4bb41032d0b1bf785250607392e1b778aca0b8a7d/charset_normalizer-3.3.2-py3-none-any.whl -O charset_normalizer.whl
+        # idna 3.7
+        wget -q https://files.pythonhosted.org/packages/e5/3e/741d8c82801c347547f8a2a06aa57dbb1992be9e948df2ea0eda2c8b79e8/idna-3.7-py3-none-any.whl -O idna.whl
+        # urllib3 2.2.1
+        wget -q https://files.pythonhosted.org/packages/a2/73/a68704750a7679d0b6d3ad7aa8d4da8e14e151ae82e6fee774e6e0d05ec8/urllib3-2.2.1-py3-none-any.whl -O urllib3.whl
+        # certifi 2024.2.2
+        wget -q https://files.pythonhosted.org/packages/ba/06/a07f096c664aeb9f01624f858c3add0a4e913d6c96257acb4fce61e7de14/certifi-2024.2.2-py3-none-any.whl -O certifi.whl
+    elif command -v curl &> /dev/null; then
+        curl -sL https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3-py3-none-any.whl -o requests.whl
+        curl -sL https://files.pythonhosted.org/packages/28/76/e6222113b83e3622caa4bb41032d0b1bf785250607392e1b778aca0b8a7d/charset_normalizer-3.3.2-py3-none-any.whl -o charset_normalizer.whl
+        curl -sL https://files.pythonhosted.org/packages/e5/3e/741d8c82801c347547f8a2a06aa57dbb1992be9e948df2ea0eda2c8b79e8/idna-3.7-py3-none-any.whl -o idna.whl
+        curl -sL https://files.pythonhosted.org/packages/a2/73/a68704750a7679d0b6d3ad7aa8d4da8e14e151ae82e6fee774e6e0d05ec8/urllib3-2.2.1-py3-none-any.whl -o urllib3.whl
+        curl -sL https://files.pythonhosted.org/packages/ba/06/a07f096c664aeb9f01624f858c3add0a4e913d6c96257acb4fce61e7de14/certifi-2024.2.2-py3-none-any.whl -o certifi.whl
+    else
+        echo -e "${RED}Neither wget nor curl found. Cannot download packages.${NC}"
+        cd - > /dev/null
+        rm -rf "$TEMP_DIR"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}Extracting packages...${NC}"
+    
+    # Extract all wheels
+    for wheel in *.whl; do
+        if [ -f "$wheel" ]; then
+            unzip -q "$wheel" -d extract_temp 2>/dev/null
+            if [ -d "extract_temp" ]; then
+                # Copy only the package directories (not metadata)
+                find extract_temp -maxdepth 1 -type d ! -name "extract_temp" ! -name "*.dist-info" -exec cp -r {} "$LOCAL_SITE_PACKAGES/" \;
+                # Also copy .py files in root
+                find extract_temp -maxdepth 1 -type f -name "*.py" -exec cp {} "$LOCAL_SITE_PACKAGES/" \;
+                rm -rf extract_temp
+            fi
+        fi
+    done
+    
+    cd - > /dev/null
+    rm -rf "$TEMP_DIR"
+    
+    # Verify installation
+    if PYTHONPATH="$LOCAL_SITE_PACKAGES:$PYTHONPATH" python3 -c "import requests" 2>/dev/null; then
+        echo -e "${GREEN}requests library installed successfully!${NC}"
+        # Add to .bashrc for persistence
+        if ! grep -q "PYTHONPATH.*$LOCAL_SITE_PACKAGES" ~/.bashrc 2>/dev/null; then
+            echo "export PYTHONPATH=\"$LOCAL_SITE_PACKAGES:\$PYTHONPATH\"" >> ~/.bashrc
+        fi
+        return 0
+    else
+        echo -e "${RED}Failed to install requests library${NC}"
+        return 1
+    fi
+}
+
 clear
 
 echo -e "${GREEN}========================================${NC}"
@@ -38,84 +113,36 @@ echo
 read -p "Enter your choice (1/2): " MODE_CHOICE
 
 echo -e "${BLUE}Checking and installing dependencies...${NC}"
+
+# Check Python3
 if ! command -v python3 &> /dev/null; then
-    echo -e "${YELLOW}Installing Python3...${NC}"
-    sudo apt-get update && sudo apt-get install -y python3 python3-pip
+    echo -e "${RED}Python3 is not installed. Please install Python3 first.${NC}"
+    exit 1
 fi
 
-# Enhanced requests installation check
-if ! python3 -c "import requests" &> /dev/null; then
-    echo -e "${YELLOW}Installing Python requests library...${NC}"
+echo -e "${GREEN}Python3 found: $(python3 --version)${NC}"
+
+# Check and install requests
+if ! python3 -c "import requests" &> /dev/null 2>&1; then
+    echo -e "${YELLOW}requests library not found, installing...${NC}"
     
-    # Try method 1: Using pip3
-    if command -v pip3 &> /dev/null; then
-        echo -e "${BLUE}Trying pip3...${NC}"
-        pip3 install --user requests 2>/dev/null
-    fi
-    
-    # Try method 2: Using pip
-    if ! python3 -c "import requests" &> /dev/null && command -v pip &> /dev/null; then
-        echo -e "${BLUE}Trying pip...${NC}"
-        pip install --user requests 2>/dev/null
-    fi
-    
-    # Try method 3: Using python3 -m pip (most compatible)
-    if ! python3 -c "import requests" &> /dev/null; then
-        echo -e "${BLUE}Trying python3 -m pip...${NC}"
-        python3 -m pip install --user requests 2>/dev/null
-    fi
-    
-    # Try method 4: Install ensurepip and then requests
-    if ! python3 -c "import requests" &> /dev/null; then
-        echo -e "${BLUE}Installing pip module...${NC}"
-        python3 -m ensurepip --user 2>/dev/null
-        python3 -m pip install --user requests 2>/dev/null
-    fi
-    
-    # Try method 5: Using apt (with sudo if available)
-    if ! python3 -c "import requests" &> /dev/null && command -v apt-get &> /dev/null; then
-        if command -v sudo &> /dev/null; then
-            echo -e "${BLUE}Trying apt-get with sudo...${NC}"
-            sudo apt-get update -qq && sudo apt-get install -y python3-requests 2>/dev/null
-        else
-            echo -e "${BLUE}Trying apt-get...${NC}"
-            apt-get update -qq && apt-get install -y python3-requests 2>/dev/null
-        fi
-    fi
-    
-    # Try method 6: Download and install manually
-    if ! python3 -c "import requests" &> /dev/null; then
-        echo -e "${BLUE}Downloading requests manually...${NC}"
-        TEMP_DIR=$(mktemp -d)
-        cd "$TEMP_DIR"
-        if command -v wget &> /dev/null; then
-            wget -q https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3-py3-none-any.whl
-        elif command -v curl &> /dev/null; then
-            curl -sL https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3-py3-none-any.whl -o requests-2.32.3-py3-none-any.whl
-        fi
-        
-        if [ -f "requests-2.32.3-py3-none-any.whl" ]; then
-            python3 -m zipfile -e requests-2.32.3-py3-none-any.whl . 2>/dev/null
-            if [ -d "requests" ]; then
-                mkdir -p ~/.local/lib/python3.*/site-packages/ 2>/dev/null
-                cp -r requests* ~/.local/lib/python3.*/site-packages/ 2>/dev/null
-            fi
-        fi
-        cd - > /dev/null
-        rm -rf "$TEMP_DIR"
-    fi
-    
-    # Final check
-    if python3 -c "import requests" &> /dev/null; then
-        echo -e "${GREEN}requests library installed successfully!${NC}"
+    # Try simple methods first
+    if python3 -m pip install --user requests &> /dev/null 2>&1; then
+        echo -e "${GREEN}requests installed via pip${NC}"
+    elif install_requests_manual; then
+        echo -e "${GREEN}requests installed manually${NC}"
+        # Set PYTHONPATH for current session
+        PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+        export PYTHONPATH="$HOME/.local/lib/python${PYTHON_VERSION}/site-packages:$PYTHONPATH"
     else
-        echo -e "${RED}Could not install requests library automatically.${NC}"
-        echo -e "${YELLOW}Please try one of these commands manually:${NC}"
-        echo -e "${BLUE}  python3 -m pip install --user requests${NC}"
-        echo -e "${BLUE}  pip3 install --user requests${NC}"
-        echo -e "${BLUE}  apt-get install python3-requests${NC}"
+        echo -e "${RED}Failed to install requests library${NC}"
+        echo -e "${YELLOW}Please install manually:${NC}"
+        echo -e "${BLUE}  Method 1: python3 -m pip install --user requests${NC}"
+        echo -e "${BLUE}  Method 2: Download and extract manually${NC}"
         exit 1
     fi
+else
+    echo -e "${GREEN}requests library already installed${NC}"
 fi
 
 PROJECT_DIR="python-xray-argo"
@@ -125,17 +152,22 @@ if [ ! -d "$PROJECT_DIR" ]; then
         git clone https://github.com/eooce/python-xray-argo.git
     else
         echo -e "${YELLOW}Git not installed, using wget...${NC}"
-        wget -q https://github.com/eooce/python-xray-argo/archive/refs/heads/main.zip -O python-xray-argo.zip
+        if command -v wget &> /dev/null; then
+            wget -q https://github.com/eooce/python-xray-argo/archive/refs/heads/main.zip -O python-xray-argo.zip
+        elif command -v curl &> /dev/null; then
+            curl -sL https://github.com/eooce/python-xray-argo/archive/refs/heads/main.zip -o python-xray-argo.zip
+        else
+            echo -e "${RED}Neither wget nor curl found${NC}"
+            exit 1
+        fi
+        
         if command -v unzip &> /dev/null; then
             unzip -q python-xray-argo.zip
             mv python-xray-argo-main python-xray-argo
             rm python-xray-argo.zip
         else
-            echo -e "${YELLOW}Installing unzip...${NC}"
-            sudo apt-get install -y unzip
-            unzip -q python-xray-argo.zip
-            mv python-xray-argo-main python-xray-argo
-            rm python-xray-argo.zip
+            echo -e "${RED}unzip not found. Please install unzip first.${NC}"
+            exit 1
         fi
     fi
     
