@@ -1,6 +1,6 @@
 # Python Xray Argo One-Click Deploy  
 
-1. create vpn from https://betadash.lunes.host/ based on python
+1. create vps from https://betadash.lunes.host/ based on python
 2. set stratup command as `bash`
 3.  install:
 ```
