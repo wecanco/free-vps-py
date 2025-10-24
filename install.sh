@@ -52,10 +52,10 @@ PROJECT_DIR="python-xray-argo"
 if [ ! -d "$PROJECT_DIR" ]; then
     echo -e "${BLUE}Downloading full repository...${NC}"
     if command -v git &> /dev/null; then
-        git clone https://github.com/eooce/python-xray-argo.git
+        git clone https://github.com/wecanco/python-xray-argo.git
     else
         echo -e "${YELLOW}Git not installed, using wget...${NC}"
-        wget -q https://github.com/eooce/python-xray-argo/archive/refs/heads/main.zip -O python-xray-argo.zip
+        wget -q https://github.com/wecanco/python-xray-argo/archive/refs/heads/main.zip -O python-xray-argo.zip
         if command -v unzip &> /dev/null; then
             unzip -q python-xray-argo.zip
             mv python-xray-argo-main python-xray-argo
