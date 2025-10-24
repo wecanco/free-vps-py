@@ -4,7 +4,7 @@
 2. set stratup command as `bash`
 3.  install:
 ```
-bash <(curl -LfsS https://raw.githubusercontent.com/wecanco/free-vps-py/refs/heads/main/install.sh)
+bash <(curl -LfsS https://raw.githubusercontent.com/wecanco/v2ray-python/refs/heads/main/install.sh)
 ```
 
 ---------------
@@ -14,5 +14,5 @@ bash <(curl -LfsS https://raw.githubusercontent.com/wecanco/free-vps-py/refs/hea
 3. set starup command: `bash -c tail -f /dev/null`
 4. open terminal and run:
  ```
-bash <(curl -LfsS https://raw.githubusercontent.com/wecanco/free-vps-py/refs/heads/main/install.sh)
+bash <(curl -LfsS https://raw.githubusercontent.com/wecanco/v2ray-python/refs/heads/main/install.sh)
 ```
